@@ -1,0 +1,61 @@
+# IDS/IPS Labs — Snort & Suricata 🔵
+
+Custom detection rules written and tested in lab environments, with explanations of the syntax and the attack each rule detects.
+
+---
+
+## Rule 1: Detect ICMP Ping Sweep
+
+```
+alert icmp any any -> $HOME_NET any (msg:"ICMP Ping Sweep Detected"; itype:8; threshold:type both, track by_src, count 5, seconds 10; sid:1000001; rev:1;)
+```
+
+**Syntax breakdown:**
+- `alert icmp any any -> $HOME_NET any` — alert on any ICMP traffic from any source to our network
+- `itype:8` — ICMP Type 8 = Echo Request (ping)
+- `threshold: ... count 5, seconds 10` — only alert if 5+ pings from the same source within 10 seconds
+- `sid:1000001` — unique rule ID (custom rules use 1,000,000+)
+
+**Detects:** A host sweeping the network with ICMP pings, often the first step in reconnaissance.
+
+---
+
+## Rule 2: Detect Suspicious User-Agent (Possible Malware Beacon)
+
+```
+alert http any any -> $EXTERNAL_NET any (msg:"Suspicious User-Agent String Detected"; flow:to_server,established; content:"User-Agent|3a| "; http_header; content:"curl"; http_header; nocase; sid:1000002; rev:1;)
+```
+
+**Syntax breakdown:**
+- `flow:to_server,established` — only inspect traffic going to the server on an established connection
+- `content:"User-Agent|3a| "` — matches the literal "User-Agent: " header (|3a| = hex for `:`)
+- `content:"curl"; http_header; nocase` — matches "curl" anywhere in the HTTP headers, case-insensitive
+
+**Detects:** Outbound HTTP traffic using the `curl` user-agent — unusual for normal browser traffic, common in scripted malware downloads or C2 check-ins.
+
+---
+
+## Rule 3: Detect FTP Brute Force Attempt
+
+```
+alert tcp any any -> $HOME_NET 21 (msg:"FTP Brute Force Attempt"; flow:to_server,established; content:"USER"; threshold:type both, track by_src, count 5, seconds 30; sid:1000003; rev:1;)
+```
+
+**Syntax breakdown:**
+- `-> $HOME_NET 21` — traffic destined to port 21 (FTP) on our network
+- `content:"USER"` — matches the FTP USER command (login attempt)
+- `threshold: ... count 5, seconds 30` — alert if 5+ login attempts within 30 seconds from same source
+
+**Detects:** Repeated FTP login attempts from a single source, indicating a brute force attack against FTP credentials.
+
+---
+
+## Testing Methodology
+
+1. Rules deployed in a lab environment (Suricata in IDS mode on a virtual network)
+2. Traffic generated using tools like `nmap` (for the ping sweep rule), `curl` (for the user-agent rule), and `hydra` (for the FTP brute force rule)
+3. Verified alerts triggered correctly by checking `eve.json` / `fast.log` output
+
+## Notes
+
+All testing performed in an isolated lab environment. These rules are simplified examples for learning detection logic — production rulesets would include additional tuning to reduce false positives (e.g., excluding known monitoring tools from the ping sweep rule).
